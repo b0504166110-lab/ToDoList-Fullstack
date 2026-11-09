@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TodoApi;
-
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(options =>
 {
@@ -66,6 +69,31 @@ return Results.Conflict("שם משתמש תפוס!");    }
     db.Users.Add(user);
     await db.SaveChangesAsync();
     return Results.Ok();
+});
+app.MapPost("/login",async(ToDoDbContext db,LoginRequest request) =>
+{
+    var currentUser = await db.Users.FirstOrDefaultAsync(u => u.UserName == request.UserName);
+if (currentUser == null || !BCrypt.Net.BCrypt.Verify(request.Password, currentUser.Password))
+{
+    return Results.Unauthorized();
+}
+var claims = new[]
+    {
+        new Claim(ClaimTypes.NameIdentifier, currentUser.Id.ToString()),
+        new Claim(ClaimTypes.Name, currentUser.UserName)
+    };
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!));
+    var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+    var token = new JwtSecurityToken(
+        claims: claims,
+        expires: DateTime.UtcNow.AddHours(1),
+        signingCredentials: credentials);
+
+    return Results.Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+
+    
 });
 
 app.Run();

@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCors(options =>
 {
@@ -15,10 +16,26 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<ToDoDbContext>();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+        };
+    });
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -26,14 +43,14 @@ app.UseSwaggerUI();
 app.MapGet("/", () => "Hello World!");
 
 app.MapGet("/items", async (ToDoDbContext db) =>
-    await db.Items.ToListAsync());
+    await db.Items.ToListAsync()).RequireAuthorization();
 
 app.MapPost("/items", async (ToDoDbContext db, Item item) =>
 {
     db.Items.Add(item);
     await db.SaveChangesAsync();
     return Results.Created($"/items/{item.Id}", item);
-});
+}).RequireAuthorization();
 
 app.MapPut("/items/{id}", async (ToDoDbContext db, int id, Item updated) =>
 {
@@ -44,7 +61,7 @@ app.MapPut("/items/{id}", async (ToDoDbContext db, int id, Item updated) =>
     item.IsComplete = updated.IsComplete ?? item.IsComplete;
     await db.SaveChangesAsync();
     return Results.Ok(item);
-});
+}).RequireAuthorization();
 
 app.MapDelete("/items/{id}", async (ToDoDbContext db, int id) =>
 {
@@ -54,7 +71,7 @@ app.MapDelete("/items/{id}", async (ToDoDbContext db, int id) =>
     db.Items.Remove(item);
     await db.SaveChangesAsync();
     return Results.NoContent();
-});
+}).RequireAuthorization();
 
 app.MapPost("/register",async(ToDoDbContext db,LoginRequest request) =>
 {

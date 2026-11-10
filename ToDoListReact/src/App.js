@@ -1,9 +1,11 @@
+import Login from './Login.js';
 import React, { useEffect, useState } from 'react';
 import service from './service.js';
 
 function App() {
   const [newTodo, setNewTodo] = useState("");
   const [todos, setTodos] = useState([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
 
   async function getTodos() {
     const todos = await service.getTasks();
@@ -28,13 +30,16 @@ function App() {
   }
 
   useEffect(() => {
-    getTodos();
-  }, []);
+  if (isLoggedIn) getTodos();
+}, [isLoggedIn]);
 
+if (!isLoggedIn) return <Login onLogin={() => setIsLoggedIn(true)} />;
   return (
     <section className="todoapp">
       <header className="header">
+        <button onClick={() => { service.logout(); setIsLoggedIn(false); }}>התנתקות</button>
         <h1>todos</h1>
+        
         <form onSubmit={createTodo}>
           <input className="new-todo" placeholder="Well, let's take on the day" value={newTodo} onChange={(e) => setNewTodo(e.target.value)} />
         </form>
